@@ -1,6 +1,6 @@
 const { createClient } = require("@supabase/supabase-js");
 const cron = require("node-cron");
-const axios = require("axios");
+const { exec } = require("child_process");
 
 // Supabase configuration
 const supabaseUrl = "https://fnxanxbxyoevmxxphksj.supabase.co";
@@ -12,7 +12,45 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 const REWARD_PARKING_API =
   "https://hederaprovider-e5c7e6e44385.herokuapp.com/rewardParking";
 
-// Function to convert time to Unix timestamp
+// Function to execute curl command
+function executeCurlCommand(userAccountId, nftId, startTime, endTime) {
+  return new Promise((resolve, reject) => {
+    const curlCommand = `curl -X POST https://hederaprovider-e5c7e6e44385.herokuapp.com/rewardParking \
+     -H "Content-Type: application/json" \
+     -d '{
+         "userAccountId": "${userAccountId}",
+         "nftId": "${nftId}",
+         "startTime": ${startTime},
+         "endTime": ${endTime}
+     }'`;
+
+    console.log("📤 Executing Curl Command:", curlCommand);
+
+    exec(curlCommand, (error, stdout, stderr) => {
+      if (error) {
+        console.error(`Execution error: ${error}`);
+        reject(error);
+        return;
+      }
+
+      if (stderr) {
+        console.error(`stderr: ${stderr}`);
+      }
+
+      console.log(`API Response: ${stdout}`);
+
+      try {
+        const parsedResponse = JSON.parse(stdout);
+        resolve(parsedResponse);
+      } catch (parseError) {
+        console.error("Failed to parse response:", parseError);
+        reject(parseError);
+      }
+    });
+  });
+}
+
+// Function to convert time to Unix timestamp and add 2 minutes
 function timeToUnixTimestamp(timeString) {
   // Get today's date
   const today = new Date();
@@ -23,31 +61,73 @@ function timeToUnixTimestamp(timeString) {
   // Set the time on today's date
   today.setHours(hours, minutes, 0, 0);
 
+  // Add 2 minutes (120 seconds)
+  today.setMinutes(today.getMinutes() + 2);
+
   // Return Unix timestamp (seconds since epoch)
   return Math.floor(today.getTime() / 1000);
 }
 
+// Function to update transaction status in database
+async function updateTransactionStatus(transactionId, status) {
+  try {
+    const { data, error } = await supabase
+      .from("Parking_Transactions")
+      .update({ status: status })
+      .eq("id", transactionId);
+
+    if (error) {
+      console.error(
+        `Error updating transaction ${transactionId} to ${status}:`,
+        error
+      );
+      return false;
+    }
+
+    console.log(`✅ Transaction ${transactionId} status updated to: ${status}`);
+    return true;
+  } catch (error) {
+    console.error(
+      `Unexpected error updating transaction ${transactionId}:`,
+      error
+    );
+    return false;
+  }
+}
+
 // Function to call reward parking API
 async function callRewardParkingAPI(
-  userAccountAddr,
+  transactionId,
+  userAccountId,
+  nftId,
   fromTimeUnix,
   endTimeUnix
 ) {
   try {
-    const response = await axios.post(REWARD_PARKING_API, {
-      userAccountId: userAccountAddr,
-      nftId: "nftDummy",
-      fromTimeUnix: fromTimeUnix,
-      endTimeUnix: endTimeUnix,
-    });
+    // Update status to "inprogress" before API call
+    await updateTransactionStatus(transactionId, "inprogress");
 
-    console.log("Reward Parking API Response:", response.data);
-    return response.data;
-  } catch (error) {
-    console.error(
-      "Error calling Reward Parking API:",
-      error.response ? error.response.data : error.message
+    const result = await executeCurlCommand(
+      userAccountId || "0.0.5640724",
+      nftId || "nftDummy",
+      fromTimeUnix,
+      endTimeUnix
     );
+
+    // Check API response and update status to "completed" if successful
+    if (result && result.success === true) {
+      await updateTransactionStatus(transactionId, "completed");
+    } else {
+      // Optionally handle failed API calls
+      console.error("API call was not successful:", result);
+      await updateTransactionStatus(transactionId, "failed");
+    }
+
+    return result;
+  } catch (error) {
+    console.error("Error calling Reward Parking API:", error);
+    // Update status to failed in case of error
+    await updateTransactionStatus(transactionId, "failed");
     return null;
   }
 }
@@ -55,23 +135,13 @@ async function callRewardParkingAPI(
 // Function to fetch and print matching parking transactions
 async function checkParkingTransactions() {
   try {
-    // Use a fixed time for testing, replace with getCurrentTime() in production
-    const currentTime = "22:00";
-    console.log(`Checking transactions starting at ${currentTime}`);
+    console.log("Checking for pending parking transactions");
 
-    // Convert current time to Unix timestamp
-    const fromTimeUnix = timeToUnixTimestamp(currentTime);
-
-    // Calculate end time (assuming 1-hour session)
-    const endTimeDate = new Date();
-    endTimeDate.setHours(endTimeDate.getHours() + 1);
-    const endTimeUnix = Math.floor(endTimeDate.getTime() / 1000);
-
-    // Query Supabase for transactions starting at the current time
+    // Query Supabase for pending transactions
     const { data, error } = await supabase
       .from("Parking_Transactions")
       .select("*")
-      .eq("from_time", currentTime);
+      .eq("status", "pending"); // Only process pending transactions
 
     if (error) {
       console.error("Error fetching transactions:", error);
@@ -79,27 +149,36 @@ async function checkParkingTransactions() {
     }
 
     if (data && data.length > 0) {
-      console.log("Matching Transactions:");
+      console.log(`Found ${data.length} pending transactions to process.`);
 
       // Process each transaction
       for (const transaction of data) {
-        console.log(`Transaction Details:
-  ID: ${transaction.id}
-  User Account: ${transaction.user_account_addr}
-  From Time: ${transaction.from_time}
-  From Time (Unix): ${fromTimeUnix}
-  End Time (Unix): ${endTimeUnix}`);
+        // Get start and end times from transaction
+        const fromTime = transaction.from_time;
+        const toTime = transaction.to_time;
+
+        // Convert to Unix timestamps with 2 minutes added
+        const fromTimeUnix = timeToUnixTimestamp(fromTime);
+        const toTimeUnix = timeToUnixTimestamp(toTime);
+
+        console.log(`Processing Transaction:
+  ID: ${transaction.id || "N/A"}
+  Provider Account: ${transaction.provider_account_addr}
+  From Time: ${fromTime} (Unix: ${fromTimeUnix})
+  To Time: ${toTime} (Unix: ${toTimeUnix})
+  Status: ${transaction.status}`);
 
         // Call Reward Parking API for each transaction
         await callRewardParkingAPI(
-          transaction.user_account_addr,
+          transaction.id,
+          transaction.provider_account_addr,
           "nftDummy",
           fromTimeUnix,
-          endTimeUnix
+          toTimeUnix
         );
       }
     } else {
-      console.log("No matching transactions found.");
+      console.log("No pending transactions found.");
     }
   } catch (err) {
     console.error("Unexpected error:", err);

@@ -1,0 +1,12 @@
+{
+    "name": "url-ping-worker",
+    "version": "1.0.0",
+    "description": "Worker to ping URL every minute",
+    "main": "worker.js",
+    "scripts": {
+        "start": "node worker.js"
+    },
+    "engines": {
+        "node": "16.x"
+    }
+}

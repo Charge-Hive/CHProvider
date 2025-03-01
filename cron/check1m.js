@@ -146,7 +146,7 @@ async function checkParkingTransactions() {
     const { data, error } = await supabase
       .from("Parking_Transactions")
       .select("*")
-      .eq("status", "pending"); // Only process pending transactions
+      .eq("status", "reserved"); // Only process pending transactions
 
     if (error) {
       console.error("Error fetching transactions:", error);
@@ -166,7 +166,6 @@ async function checkParkingTransactions() {
         // Convert MST times to Unix timestamps (UTC) with 2 minutes added
         const fromTimeUnix = timeToUnixTimestamp(fromTime, date);
         const toTimeUnix = timeToUnixTimestamp(toTime, date);
-
         // Calculate UTC times for logging
         const fromMst = new Date(`${date}T${fromTime}:00`);
         const toMst = new Date(`${date}T${toTime}:00`);
@@ -174,6 +173,9 @@ async function checkParkingTransactions() {
         // Add 7 hours to convert MST to UTC
         const fromUtc = new Date(fromMst.getTime() + 7 * 60 * 60 * 1000);
         const toUtc = new Date(toMst.getTime() + 7 * 60 * 60 * 1000);
+
+        console.log(fromUtc.toISOString());
+        console.log(toUtc.toISOString());
 
         console.log(`Processing Transaction:
   ID: ${transaction.id || "N/A"}

@@ -1,12 +1,18 @@
 {
-    "name": "url-ping-worker",
+    "name": "parking-transactions-monitor",
     "version": "1.0.0",
-    "description": "Worker to ping URL every minute",
-    "main": "worker.js",
+    "description": "Server to monitor parking transactions from Supabase",
+    "main": "check1m.js",
     "scripts": {
-        "start": "node worker.js"
+        "start": "node check1m.js",
+        "dev": "nodemon check1m.js"
     },
-    "engines": {
-        "node": "16.x"
+    "dependencies": {
+        "@supabase/supabase-js": "^2.39.0",
+        "dotenv": "^16.3.1",
+        "node-cron": "^3.0.3"
+    },
+    "devDependencies": {
+        "nodemon": "^3.0.1"
     }
 }

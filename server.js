@@ -375,10 +375,11 @@ app.post("/rewardParking", async (req, res) => {
   const { userAccountId, nftId, startTime, endTime } = req.body;
 
   // Validate inputs
-  if (!userAccountId || !nftId || !startTime || !endTime) {
+  if (!userAccountId || !nftId) {
     return res.status(400).json({
       success: false,
-      error: "Missing userAccountId or nftId in request body",
+      error:
+        "Missing userAccountId,nftId, startTime or endTime in request body",
     });
   }
 

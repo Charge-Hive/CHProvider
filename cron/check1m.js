@@ -79,7 +79,7 @@ async function updateTransactionStatus(transactionId, status) {
     const { data, error } = await supabase
       .from("Parking_Transactions")
       .update({ status: status })
-      .eq("id", transactionId);
+      .eq("parking_transaction_id", transactionId);
 
     if (error) {
       console.error(
@@ -178,7 +178,7 @@ async function checkParkingTransactions() {
         console.log(toUtc.toISOString());
 
         console.log(`Processing Transaction:
-  ID: ${transaction.id || "N/A"}
+  ID: ${transaction.parking_transaction_id || "N/A"}
   Provider Account: ${transaction.provider_account_addr}
   Date: ${date}
   From Time (MST): ${fromTime} → (UTC): ${fromUtc.toISOString()}

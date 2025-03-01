@@ -5,6 +5,8 @@ const {
   PrivateKey,
   Client,
   Hbar,
+  AccountInfoQuery,
+  AccountBalanceQuery,
   AccountCreateTransaction,
   ContractCallQuery,
   ContractExecuteTransaction,
@@ -497,6 +499,86 @@ app.post("/rewardParking", async (req, res) => {
       success: false,
       error: error.message,
     });
+  }
+});
+
+// Add this endpoint to your existing Express app
+
+// REST API endpoint to get account balance (HBAR and ChargeHive token)
+app.post("/account-balance", async (req, res) => {
+  const { accountId, privateKey, tokenId } = req.body;
+  let client;
+
+  // Validate inputs
+  if (!accountId || !privateKey) {
+    return res.status(400).json({
+      success: false,
+      error: "Missing accountId or privateKey in request body",
+    });
+  }
+
+  try {
+    // Parse account details
+    const hederaAccountId = AccountId.fromString(accountId);
+    const hederaPrivateKey = PrivateKey.fromStringECDSA(privateKey);
+    const chargeHiveTokenId = "0.0.5630530";
+
+    // Create Hedera client with the provided account
+    client = Client.forTestnet().setOperator(hederaAccountId, hederaPrivateKey);
+
+    // Query account balance (includes HBAR and all tokens)
+    const accountBalanceQuery = new AccountBalanceQuery().setAccountId(
+      hederaAccountId
+    );
+
+    const balanceResponse = await accountBalanceQuery.execute(client);
+
+    // Get HBAR balance
+    const hbarBalance = balanceResponse.hbars.toTinybars().toString();
+
+    // Get ChargeHive token balance
+    const chargeHiveBalance =
+      balanceResponse.tokens.get(chargeHiveTokenId)?.toString() || "0";
+
+    // Get full account info for additional details if needed
+    const accountInfoQuery = new AccountInfoQuery().setAccountId(
+      hederaAccountId
+    );
+
+    const accountInfo = await accountInfoQuery.execute(client);
+
+    // Return the balance information
+    res.status(200).json({
+      success: true,
+      accountId: accountId,
+      balances: {
+        hbar: {
+          tinybars: hbarBalance,
+          hbar: (parseInt(hbarBalance) / 100000000).toFixed(8), // Convert tinybars to hbar
+        },
+        chargeHive: {
+          tokenId: chargeHiveTokenId,
+          balance: chargeHiveBalance,
+        },
+      },
+      accountDetails: {
+        key: accountInfo.key.toString(),
+        balance: accountInfo.balance.toString(),
+        receiverSignatureRequired: accountInfo.receiverSignatureRequired,
+        expirationTime: accountInfo.expirationTime?.toString(),
+      },
+    });
+  } catch (error) {
+    console.error("Error fetching account balance:", error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+    });
+  } finally {
+    // Ensure client is closed
+    if (client) {
+      await client.close();
+    }
   }
 });
 

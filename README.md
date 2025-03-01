@@ -1,2 +1,2 @@
-# WWProvider
-Hedera Provider API's
+# CHProvider
+Hedera Provider API's using @hashgraph/sdk - HTS, HCS 

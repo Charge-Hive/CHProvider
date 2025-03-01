@@ -29,9 +29,10 @@ const MY_ACCOUNT_ID = AccountId.fromString("0.0.5530044");
 const MY_PRIVATE_KEY = PrivateKey.fromStringECDSA(
   "731025b6bfb69ae6f9d2c673c81a4094bf97bde8ed993fe8ecd8b84b02010aaf"
 );
-const ADAPTER_ID = AccountId.fromString("0.0.5640055");
+const ADAPTER_ID = AccountId.fromString("0.0.5640910");
+// 0.0.5640055
 const ADAPTER_KEY = PrivateKey.fromStringECDSA(
-  "3030020100300706052b8104000a042204205a06bb89b28a4aefda42217b65cef4ecada0d83d23385e38909968cf7e1bc424"
+  "3030020100300706052b8104000a042204201f68551e88e1831f4bf1816b25a8abda65d47aa579d744e7bd1d23812c45b883"
 );
 const CONTRACT_ID = "0.0.5640053";
 const chAdapterContractId = "0.0.5640053";

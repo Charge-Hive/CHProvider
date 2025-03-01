@@ -1,0 +1,10 @@
+name: URL Ping
+on:
+  schedule:
+    - cron: "* * * * *" # Run every minute
+jobs:
+  ping-url:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping URL
+        run: curl -s -o /dev/null -w "%{http_code}" https://hederaprovider-e5c7e6e44385.herokuapp.com/updateNFT

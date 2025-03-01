@@ -178,7 +178,10 @@ async function checkParkingTransactions() {
         );
       }
     } else {
-      console.log("No pending transactions found.");
+      const currentDateTime = new Date().toISOString();
+      console.log(
+        `No pending transactions found. Current date and time: ${currentDateTime}`
+      );
     }
   } catch (err) {
     console.error("Unexpected error:", err);

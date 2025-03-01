@@ -50,22 +50,27 @@ function executeCurlCommand(userAccountId, nftId, startTime, endTime) {
   });
 }
 
-// Function to convert time to Unix timestamp and add 2 minutes
-function timeToUnixTimestamp(timeString) {
-  // Get today's date
-  const today = new Date();
+// Function to convert MST time to Unix timestamp (UTC) and add 2 minutes
+function timeToUnixTimestamp(timeString, dateString) {
+  // Parse the date from the transaction
+  const [year, month, day] = dateString.split("-").map(Number);
 
   // Parse the time string (HH:MM format)
   const [hours, minutes] = timeString.split(":").map(Number);
 
-  // Set the time on today's date
-  today.setHours(hours, minutes, 0, 0);
+  // Create date object in MST
+  // Note: Month is 0-indexed in JavaScript Date
+  const mstDate = new Date(year, month - 1, day, hours, minutes, 0, 0);
 
-  // Add 2 minutes (120 seconds)
-  today.setMinutes(today.getMinutes() + 2);
+  // Convert MST to UTC by adding 7 hours (MST is UTC-7)
+  // This adjusts the time from MST to UTC
+  const utcDate = new Date(mstDate.getTime() + 7 * 60 * 60 * 1000);
 
-  // Return Unix timestamp (seconds since epoch)
-  return Math.floor(today.getTime() / 1000);
+  // Add 2 minutes as requested
+  utcDate.setMinutes(utcDate.getMinutes() + 2);
+
+  // Return Unix timestamp (seconds since epoch) in UTC
+  return Math.floor(utcDate.getTime() / 1000);
 }
 
 // Function to update transaction status in database
@@ -156,16 +161,27 @@ async function checkParkingTransactions() {
         // Get start and end times from transaction
         const fromTime = transaction.from_time;
         const toTime = transaction.to_time;
+        const date = transaction.date;
 
-        // Convert to Unix timestamps with 2 minutes added
-        const fromTimeUnix = timeToUnixTimestamp(fromTime);
-        const toTimeUnix = timeToUnixTimestamp(toTime);
+        // Convert MST times to Unix timestamps (UTC) with 2 minutes added
+        const fromTimeUnix = timeToUnixTimestamp(fromTime, date);
+        const toTimeUnix = timeToUnixTimestamp(toTime, date);
+
+        // Calculate UTC times for logging
+        const fromMst = new Date(`${date}T${fromTime}:00`);
+        const toMst = new Date(`${date}T${toTime}:00`);
+
+        // Add 7 hours to convert MST to UTC
+        const fromUtc = new Date(fromMst.getTime() + 7 * 60 * 60 * 1000);
+        const toUtc = new Date(toMst.getTime() + 7 * 60 * 60 * 1000);
 
         console.log(`Processing Transaction:
   ID: ${transaction.id || "N/A"}
   Provider Account: ${transaction.provider_account_addr}
-  From Time: ${fromTime} (Unix: ${fromTimeUnix})
-  To Time: ${toTime} (Unix: ${toTimeUnix})
+  Date: ${date}
+  From Time (MST): ${fromTime} → (UTC): ${fromUtc.toISOString()}
+  To Time (MST): ${toTime} → (UTC): ${toUtc.toISOString()}
+  Unix Timestamps (with +2min): From=${fromTimeUnix}, To=${toTimeUnix}
   Status: ${transaction.status}`);
 
         // Call Reward Parking API for each transaction
